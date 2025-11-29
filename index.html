@@ -417,18 +417,49 @@
             updateCartUI();
         });
         // 新增函数：检查 URL 参数
-        function checkPaymentStatus() {
+        // 检查 URL 参数 (处理支付回调)
+        async function checkPaymentStatus() { // 👈 注意：这里加了 async
             const urlParams = new URLSearchParams(window.location.search);
 
             if (urlParams.get('status') === 'success') {
-                // 1. 弹窗庆祝
-                alert("🎉 支付成功！感谢您的购买！我们会尽快发货。");
 
-                // 2. 清空购物车
+                // 🛑 核心修复步骤：支付成功了，先告诉后端存入数据库！
+                // 因为目前 Stripe 模式不返回地址，我们先自动填入 "Stripe线上订单"
+                // 这样数据库就不会报错说“缺名字、缺地址”了
+
+                // 1. 算出总价
+                const total = cart.reduce((sum, item) => sum + item.price, 0);
+
+                // 2. 准备数据
+                const orderData = {
+                    customerName: "Stripe 顾客", // 暂时用通用名，以后可以用 Stripe Webhook 获取真名
+                    address: "Stripe 线上支付",  // 暂时用通用地址
+                    items: cart,                 // 购物车里的东西
+                    totalPrice: total            // 总价
+                };
+
+                try {
+                    // 3. 发送给后端保存
+                    // 注意：这里使用的是 api/orders 接口，不是 Stripe 接口
+                    await fetch(`${BASE_URL}/api/orders`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(orderData)
+                    });
+
+                    alert("🎉 支付成功！订单已成功同步到后台！");
+
+                } catch (err) {
+                    console.error("订单保存失败:", err);
+                    alert("支付成功，但订单保存出点小错，请联系客服。");
+                }
+
+                // 4. 一切搞定后，再清空购物车
                 cart = [];
                 localStorage.removeItem('myCart');
+                updateCartUI();
 
-                // 3. 清理掉 URL 里的 ?status=success，让地址栏变干净 (可选)
+                // 让地址栏变干净
                 window.history.replaceState({}, document.title, window.location.pathname);
             }
             else if (urlParams.get('status') === 'cancel') {
