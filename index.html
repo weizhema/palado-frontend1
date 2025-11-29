@@ -307,6 +307,135 @@
         }
     </style>
 </head>
+<!-- ============ ✨ 新增：智能向导弹窗 (Quiz Modal) ============ -->
+<style>
+    /* 遮罩层：全屏半透明 */
+    .quiz-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.98);
+        /* 纯白背景，更有高级感 */
+        z-index: 2000;
+        display: none;
+        /* 默认隐藏 */
+        justify-content: center;
+        align-items: center;
+    }
+
+    /* 问卷盒子 */
+    .quiz-box {
+        text-align: center;
+        max-width: 500px;
+        width: 90%;
+        animation: slideUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        /* 弹性动画 */
+    }
+
+    @keyframes slideUp {
+        from {
+            transform: translateY(50px);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+
+    /* 步骤控制 */
+    .quiz-step {
+        display: none;
+    }
+
+    .quiz-step.active {
+        display: block;
+    }
+
+    /* 选项按钮 */
+    .quiz-option {
+        display: block;
+        width: 100%;
+        padding: 20px;
+        margin: 15px 0;
+        border: 2px solid #eee;
+        border-radius: 15px;
+        font-size: 1.1rem;
+        cursor: pointer;
+        transition: 0.3s;
+        background: white;
+        font-weight: 600;
+        color: #333;
+    }
+
+    .quiz-option:hover {
+        border-color: #000;
+        background: #000;
+        color: #fff;
+        transform: translateY(-3px);
+    }
+
+    /* 输入框美化 */
+    .quiz-input {
+        width: 100%;
+        padding: 15px;
+        font-size: 1.5rem;
+        border: none;
+        border-bottom: 2px solid #ddd;
+        outline: none;
+        text-align: center;
+        background: transparent;
+        margin-bottom: 30px;
+        font-weight: bold;
+    }
+
+    .quiz-input:focus {
+        border-bottom-color: #000;
+    }
+</style>
+
+<div id="quiz-overlay" class="quiz-overlay">
+    <div class="quiz-box">
+        <!-- 关闭按钮 -->
+        <button onclick="closeQuiz()"
+            style="position:absolute; top:30px; right:30px; border:none; background:none; font-size:2rem; cursor:pointer; color:#999;">&times;</button>
+
+        <!-- 🟢 步骤 1: 询问名字 (建立情感连接) -->
+        <div id="step-1" class="quiz-step active">
+            <h2 style="font-size:2rem; margin-bottom:10px;">👋 Hi!</h2>
+            <p style="color:#666; margin-bottom:30px;">首先，我们要怎么称呼你？</p>
+            <input type="text" id="quiz-name" class="quiz-input" placeholder="输入你的名字..." autocomplete="off">
+            <button onclick="nextToStep2()" class="checkout-btn"
+                style="width: auto; padding: 12px 50px; border-radius:30px;">下一步 ➝</button>
+        </div>
+
+        <!-- 🟢 步骤 2: 询问用途 (筛选逻辑) -->
+        <div id="step-2" class="quiz-step">
+            <h2 style="font-size:2rem; margin-bottom:30px;">很高兴认识你，<span id="display-name"
+                    style="color:#7380ec;"></span>!</h2>
+            <p style="color:#666; margin-bottom:20px;">你买鞋的主要场景是？</p>
+            <button class="quiz-option" onclick="finishQuiz('running')">🏃‍♂️ 专业跑步 / 健身训练</button>
+            <button class="quiz-option" onclick="finishQuiz('casual')">☕ 日常通勤 / 城市漫步</button>
+        </div>
+
+        <!-- 🟢 步骤 3: 推荐结果 (转化成交) -->
+        <div id="step-3" class="quiz-step">
+            <h2 style="margin-bottom:10px;">🎉 找到了！</h2>
+            <p style="color:#666;">根据你的需求，这双鞋写着你的名字：</p>
+
+            <!-- 推荐结果卡片容器 -->
+            <div id="recommendation-result" style="margin: 30px 0;">
+                <!-- JS 会把鞋子塞到这里 -->
+            </div>
+
+            <button onclick="closeQuiz()"
+                style="color:#999; background:none; border:none; cursor:pointer; text-decoration:underline; font-size:0.9rem;">查看所有鞋款</button>
+        </div>
+    </div>
+</div>
 
 <body>
     <!-- 1. 顶部通知栏 -->
@@ -335,11 +464,27 @@
         </div>
     </nav>
 
-    <!-- 2. 英雄海报区 -->
+    <!-- 2. 英雄海报区 (已升级：BarkBox 风格入口) -->
     <header class="hero">
         <div class="hero-content">
-            <h1>重塑<br>你的步伐</h1>
-            <p>Design for movement. Engineered for speed.</p>
+            <h1 style="margin-bottom: 20px;">不仅仅是鞋子<br>是你的<span style="color:#7380ec;">专属履程</span></h1>
+            <p style="margin-bottom: 30px; color: #555;">回答 2 个简单问题，为你匹配完美鞋款。</p>
+
+            <!-- ✨ 核心按钮：点击触发问卷 -->
+            <button onclick="startQuiz()" style="
+                padding: 15px 40px;
+                background: #000;
+                color: #fff;
+                border: none;
+                border-radius: 50px;
+                font-size: 1.1rem;
+                font-weight: bold;
+                cursor: pointer;
+                box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+                transition: transform 0.2s;
+            " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                🚀 开始我的定制测试
+            </button>
         </div>
     </header>
 
@@ -417,10 +562,12 @@
 
         // ================= 1. 启动逻辑 =================
         document.addEventListener('DOMContentLoaded', () => {
+
             fetchProducts();
             checkPaymentStatus();
             updateCartUI();
         });
+
         // 新增函数：检查 URL 参数
         // 检查 URL 参数 (处理支付回调)
         async function checkPaymentStatus() {
@@ -461,6 +608,107 @@
                 updateCartUI();
                 window.history.replaceState({}, document.title, window.location.pathname);
             }
+        }
+        // ================= 🧠 智能问卷逻辑 (BarkBox 核心) =================
+
+        let userPreferences = {
+            name: '',
+            category: ''
+        };
+
+        // 1. 打开问卷
+        function startQuiz() {
+            document.getElementById('quiz-overlay').style.display = 'flex';
+            // 重置到第一步
+            showStep(1);
+        }
+
+        // 2. 关闭问卷
+        function closeQuiz() {
+            document.getElementById('quiz-overlay').style.display = 'none';
+        }
+
+        // 3. 辅助函数：显示第几步
+        function showStep(stepNumber) {
+            // 先隐藏所有步骤
+            document.querySelectorAll('.quiz-step').forEach(el => el.classList.remove('active'));
+            // 显示指定步骤
+            document.getElementById(`step-${stepNumber}`).classList.add('active');
+        }
+
+        // 4. 从第一步去第二步
+        function nextToStep2() {
+            const nameInput = document.getElementById('quiz-name');
+            const name = nameInput.value.trim();
+
+            if (!name) return alert("请告诉我们要怎么称呼你呀 😊");
+
+            userPreferences.name = name;
+            // 把名字填到第二步的标题里，增加亲切感
+            document.getElementById('display-name').innerText = name;
+
+            // 顺便把名字存到 localStorage，支付的时候自动填入
+            // 这样用户体验极佳：不用填两遍名字！
+            localStorage.setItem('tempCustomer', JSON.stringify({ name: name, address: '' }));
+
+            // 也可以预填充购物车底部的名字框（如果有的话）
+            const cartNameInput = document.getElementById('cust-name');
+            if (cartNameInput) cartNameInput.value = name;
+
+            showStep(2);
+        }
+
+        // 5. 完成问卷，生成推荐
+        function finishQuiz(category) {
+            userPreferences.category = category;
+
+            // 🤖 核心算法：在 allProductsData 里找匹配的
+            // 比如：你选了 'running'，就在 allProductsData 里找 category === 'running' 的鞋
+            const matches = allProductsData.filter(item => item.category === category);
+
+            // 为了演示效果，我们取第一个匹配的，或者随机取一个
+            // 如果没库存了，就默认推荐第一双，防止报错
+            const recommendProduct = matches.length > 0 ? matches[0] : allProductsData[0];
+
+            if (!recommendProduct) {
+                alert("数据还没加载完，请稍后再试！");
+                return;
+            }
+
+            // 渲染推荐卡片
+            const resultContainer = document.getElementById('recommendation-result');
+            resultContainer.innerHTML = `
+                <div style="
+                    background: #fff; 
+                    border-radius: 20px; 
+                    padding: 20px; 
+                    box-shadow: 0 15px 40px rgba(115, 128, 236, 0.15);
+                    transform: scale(1.05);
+                    border: 2px solid #7380ec;
+                ">
+                    <div style="position:relative;">
+                        <img src="${recommendProduct.img}" style="width:100%; height:200px; object-fit:cover; border-radius:10px; margin-bottom:15px;">
+                        <span style="position:absolute; top:10px; left:10px; background:#000; color:#fff; padding:5px 10px; font-size:0.8rem; border-radius:20px;">
+                            ${userPreferences.name} 的专属推荐
+                        </span>
+                    </div>
+                    
+                    <h3 style="margin-bottom:5px; font-size:1.4rem;">${recommendProduct.name}</h3>
+                    <p style="color:#666; font-size:0.9rem; margin-bottom:15px;">
+                        ${category === 'running' ? '🚀 专为速度与耐力设计' : '🍃 专为舒适与风格设计'}
+                    </p>
+                    
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px;">
+                        <div style="font-size:1.5rem; font-weight:800;">$${recommendProduct.price}</div>
+                        <button onclick="addToCart('${recommendProduct._id}'); closeQuiz(); toggleCart();" 
+                            class="checkout-btn" style="width:auto; padding:10px 20px;">
+                            🎁 放入购物车
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            showStep(3);
         }
         // ================= 2. 获取数据 (稍微改一点点) =================
         async function fetchProducts() {
@@ -658,6 +906,7 @@
                 btn.innerText = "💳 立即支付";
             }
         }
+
     </script>
 
 </body>
