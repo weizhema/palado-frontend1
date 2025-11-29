@@ -207,6 +207,7 @@
             /* 顺滑动画 */
             display: flex;
             flex-direction: column;
+            <input type="text" id="cust-name" placeholder="您的姓名" ...><input type="text" id="cust-addr" placeholder="收货地址" ...>
         }
 
         /* 激活状态：滑出来 */
@@ -418,52 +419,43 @@
         });
         // 新增函数：检查 URL 参数
         // 检查 URL 参数 (处理支付回调)
-        async function checkPaymentStatus() { // 👈 注意：这里加了 async
+        async function checkPaymentStatus() {
             const urlParams = new URLSearchParams(window.location.search);
 
             if (urlParams.get('status') === 'success') {
 
-                // 🛑 核心修复步骤：支付成功了，先告诉后端存入数据库！
-                // 因为目前 Stripe 模式不返回地址，我们先自动填入 "Stripe线上订单"
-                // 这样数据库就不会报错说“缺名字、缺地址”了
+                // 1. 从“临时小背包”里取出刚才填的名字
+                const tempCustomer = JSON.parse(localStorage.getItem('tempCustomer')) || { name: "Stripe 顾客", address: "未知地址" };
 
-                // 1. 算出总价
+                // 2. 准备订单数据
                 const total = cart.reduce((sum, item) => sum + item.price, 0);
-
-                // 2. 准备数据
                 const orderData = {
-                    customerName: "Stripe 顾客", // 暂时用通用名，以后可以用 Stripe Webhook 获取真名
-                    address: "Stripe 线上支付",  // 暂时用通用地址
-                    items: cart,                 // 购物车里的东西
-                    totalPrice: total            // 总价
+                    customerName: tempCustomer.name,   // 👈 使用取出来的名字
+                    address: tempCustomer.address,     // 👈 使用取出来的地址
+                    items: cart,
+                    totalPrice: total
                 };
 
                 try {
-                    // 3. 发送给后端保存
-                    // 注意：这里使用的是 api/orders 接口，不是 Stripe 接口
+                    // 3. 存入后端
                     await fetch(`${BASE_URL}/api/orders`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(orderData)
                     });
 
-                    alert("🎉 支付成功！订单已成功同步到后台！");
+                    alert(`🎉 支付成功！谢谢你，${tempCustomer.name}！订单已生成。`);
 
                 } catch (err) {
                     console.error("订单保存失败:", err);
-                    alert("支付成功，但订单保存出点小错，请联系客服。");
                 }
 
-                // 4. 一切搞定后，再清空购物车
+                // 4. 清理工作
                 cart = [];
                 localStorage.removeItem('myCart');
+                localStorage.removeItem('tempCustomer'); // 用完就把名字扔掉
                 updateCartUI();
-
-                // 让地址栏变干净
                 window.history.replaceState({}, document.title, window.location.pathname);
-            }
-            else if (urlParams.get('status') === 'cancel') {
-                alert("qaq 您取消了支付，商品还在购物车里等着您哦！");
             }
         }
         // ================= 2. 获取数据 (稍微改一点点) =================
@@ -623,45 +615,43 @@
         const stripe = Stripe('pk_test_51SYdsIQr6341tjDEOCmUjmguA4yTzcOIfcaR0x7Ohya7HFRjV0lsuLHJJeOVUV6pMpdnMo5tTNR0ACUAvi75LqUN009LfHTz2w');
 
         async function submitOrder() {
-            if (cart.length === 0) return alert("购物车是空的，无法结账！");
+            if (cart.length === 0) return alert("购物车为空");
 
-            // 给用户一个反馈，防止重复点击
-            const checkoutBtn = document.querySelector('.checkout-btn');
-            checkoutBtn.innerText = "⏳ 正在跳转支付...";
-            checkoutBtn.disabled = true;
+            // 1. 获取输入框的值
+            // 注意：请确保你的 HTML 里有 input id="cust-name" 和 input id="cust-addr"
+            // 如果你用的是我之前给的 index.html，购物车底部是有这两个框的
+            const nameInput = document.getElementById('cust-name');
+            const addrInput = document.getElementById('cust-addr');
+
+            const name = nameInput ? nameInput.value : "顾客";
+            const addr = addrInput ? addrInput.value : "线上地址";
+
+            // 2. 存进“临时小背包” (localStorage)
+            // 这样跳转回来后，我们还能记得是谁买的
+            localStorage.setItem('tempCustomer', JSON.stringify({
+                name: name,
+                address: addr
+            }));
+
+            const btn = document.querySelector('.checkout-btn');
+            btn.innerText = "⏳ 正在跳转...";
+            btn.disabled = true;
 
             try {
-                // 2. 请求后端创建一个“支付会话”
-                // 注意：如果你是在本地测试，确保 API_URL 指向 http://localhost:5000/api/products 的那个前缀
-                // 这里我们要访问 /create-checkout-session
-                const response = await fetch(`${BASE_URL}/api/create-checkout-session`, {
+                // 3. 去后端创建支付会话
+                const res = await fetch(`${BASE_URL}/api/create-checkout-session`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ items: cart }) // 把购物车发给后端
+                    body: JSON.stringify({ items: cart })
                 });
+                const session = await res.json();
+                if (session.error) { alert(session.error); btn.disabled = false; return; }
 
-                const session = await response.json();
-
-                // 3. 如果后端报错了
-                if (session.error) {
-                    alert("创建支付失败: " + session.error);
-                    checkoutBtn.innerText = "💳 确认支付";
-                    checkoutBtn.disabled = false;
-                    return;
-                }
-
-                // 4. 后端返回 session.id 后，让 Stripe 帮我们跳转页面
-                const result = await stripe.redirectToCheckout({ sessionId: session.id });
-
-                if (result.error) {
-                    alert(result.error.message);
-                }
-
+                await stripe.redirectToCheckout({ sessionId: session.id });
             } catch (err) {
-                console.error("支付错误:", err);
-                alert("无法连接到支付服务器，请检查后端是否启动！");
-                checkoutBtn.innerText = "💳 确认支付";
-                checkoutBtn.disabled = false;
+                alert("支付连接失败，请检查后端");
+                btn.disabled = false;
+                btn.innerText = "💳 立即支付";
             }
         }
     </script>
