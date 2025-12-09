@@ -530,8 +530,13 @@
             </div>
 
             <!-- 2. 👇 这里就是你要补加的输入框 👇 -->
+            <!-- 2. 输入框区域 (已升级) -->
             <div style="margin-bottom: 15px;">
                 <input type="text" id="cust-name" placeholder="请输入您的姓名"
+                    style="width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 5px; outline: none;">
+
+                <!-- ✨ 新增：邮箱输入框 -->
+                <input type="email" id="cust-email" placeholder="您的电子邮箱 (接收订单通知)"
                     style="width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 5px; outline: none;">
 
                 <input type="text" id="cust-addr" placeholder="请输入收货地址"
@@ -548,8 +553,8 @@
     <script>
         // =================配置区域=================
         // 在 script 顶部定义
-        // const BASE_URL = 'http://localhost:5000'; // 本地开发用这个
-        const BASE_URL = 'https://palado-backend1.onrender.com'; // 上线用这个
+        const BASE_URL = 'http://localhost:5000'; // 本地开发用这个
+        // const BASE_URL = 'https://palado-backend1.onrender.com'; // 上线用这个
 
         const API_URL = `${BASE_URL}/api/products`;
         const ORDER_URL = `${BASE_URL}/api/orders`;
@@ -572,17 +577,19 @@
         // 检查 URL 参数 (处理支付回调)
         async function checkPaymentStatus() {
             const urlParams = new URLSearchParams(window.location.search);
+            // console.log... (之前的窃听器代码可以留着)
 
             if (urlParams.get('status') === 'success') {
 
-                // 1. 从“临时小背包”里取出刚才填的名字
-                const tempCustomer = JSON.parse(localStorage.getItem('tempCustomer')) || { name: "Stripe 顾客", address: "未知地址" };
+                // 1. 取出数据
+                const tempCustomer = JSON.parse(localStorage.getItem('tempCustomer')) || {};
 
-                // 2. 准备订单数据
+                // 2. 准备发给后端的数据
                 const total = cart.reduce((sum, item) => sum + item.price, 0);
                 const orderData = {
-                    customerName: tempCustomer.name,   // 👈 使用取出来的名字
-                    address: tempCustomer.address,     // 👈 使用取出来的地址
+                    customerName: tempCustomer.name || "匿名顾客",
+                    address: tempCustomer.address || "默认地址",
+                    email: tempCustomer.email, // 👈 ✨ 核心：把取出来的邮箱发给后端！
                     items: cart,
                     totalPrice: total
                 };
@@ -869,20 +876,25 @@
         async function submitOrder() {
             if (cart.length === 0) return alert("购物车为空");
 
-            // 1. 获取输入框的值
-            // 注意：请确保你的 HTML 里有 input id="cust-name" 和 input id="cust-addr"
-            // 如果你用的是我之前给的 index.html，购物车底部是有这两个框的
+            // 获取输入框的值
             const nameInput = document.getElementById('cust-name');
             const addrInput = document.getElementById('cust-addr');
+            const emailInput = document.getElementById('cust-email'); // 👈 获取邮箱框
 
             const name = nameInput ? nameInput.value : "顾客";
             const addr = addrInput ? addrInput.value : "线上地址";
+            const email = emailInput ? emailInput.value : ""; // 👈 获取值
 
-            // 2. 存进“临时小背包” (localStorage)
-            // 这样跳转回来后，我们还能记得是谁买的
+            // 🛡️ 简单验证：没填邮箱不让买
+            if (!email || !email.includes('@')) {
+                return alert("为了接收订单通知，请填写正确的邮箱地址！📧");
+            }
+
+            // 2. 存进“临时小背包” (关键！把 email 存进去)
             localStorage.setItem('tempCustomer', JSON.stringify({
                 name: name,
-                address: addr
+                address: addr,
+                email: email // 👈 存进去！
             }));
 
             const btn = document.querySelector('.checkout-btn');
